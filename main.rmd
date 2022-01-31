@@ -211,7 +211,7 @@ grid.arrange(steps_cal, activeMin_cal, inactiveMin_cal, nrow = 2, ncol = 2)
 ```
 
 As it's clear that our hypothesis is correct as the slope for total_steps/calories and active_minutes/calories is positive, it shows linear growth and inactive_minutes/calories is negative. The relationship is not really strong as there is lot of variance in the data.
-It is clear by the values of the correlations(in red) that relationship is not strong and if we try to fit a linear model it will not be an apt one.
+It is clear by the values of the correlations(the value mentioned in each graph) that relationship is not strong and if we try to fit a linear model it will not be an apt one.
 
 ```{r delete junk daily, echo = FALSE}
 rm(steps_cal)
@@ -497,7 +497,7 @@ steps_intensity <- ggplot(data = hourly_merged, aes(x = steps, y = intensity)) +
 grid.arrange(intensity_calories, steps_calories, steps_intensity, nrow = 2, ncol = 2)
 ```
 
-As we can see from the plots and scatter plot they are mostly linearly increasing and it is also clear from the correlation values on the graph(in red) that the attributes have a good correlation between them. We shall fit a linear model to it later on.
+As we can see from the plots and scatter plot they are mostly linearly increasing and it is also clear from the correlation values on the graph(value mentioned in each graph) that the attributes have a good correlation between them. We shall fit a linear model to it later on.
 
 Let's try to find some trends from this data on different times of a day.
 
@@ -561,7 +561,7 @@ distance_steps_plot <- ggplot(steps_distance, aes(distance, steps)) + geom_point
 distance_steps_plot + geom_text(x=3, y=20000, label = cor(steps_distance$distance, steps_distance$steps) %>% round(3), size = 5, color = "darkslategray")
 ```
 
-The value in red represents the correlation between the attributes and as it is 0.985 this represents there is a strong relationship between these attributes. We can see this through the plot tooo, they are increasing constantly.
+The value in top left represents the correlation between the attributes and as it is 0.985 this represents there is a strong relationship between these attributes. We can see this through the plot too, they are increasing constantly.
 
 Let's define a function that we will use for other regressions too. This will split the data into test and train data.
 

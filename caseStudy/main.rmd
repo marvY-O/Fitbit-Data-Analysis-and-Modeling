@@ -1,0 +1,379 @@
+---
+title: "Fitbit Data Analysis and Modeling"
+author: "Vyom Verma"
+date: "17/01/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+This is a case study to analyze data and make predictions from the data collected by a FitBit Fitness Tracker. 
+The data can be fetched from [here](https://www.kaggle.com/arashnic/fitbit).
+
+### First Look
+
+After unzipping the files, its clearly visible that the files are not arranged in any meaningful way. Lets arrange the data according to the timeline they represent i.e., daily, hourly, minutely. The directory structure will look similar to this.
+
+```
+.
+├── daily
+│   ├── dailyActivity_merged.csv
+│   ├── dailyCalories_merged.csv
+│   ├── dailyIntensities_merged.csv
+│   ├── dailySteps_merged.csv
+│   └── sleepDay_merged.csv
+├── heartrate_seconds_merged.csv
+├── hourly
+│   ├── hourlyCalories_merged.csv
+│   ├── hourlyIntensities_merged.csv
+│   └── hourlySteps_merged.csv
+├── minutes
+│   ├── minuteCaloriesNarrow_merged.csv
+│   ├── minuteCaloriesWide_merged.csv
+│   ├── minuteIntensitiesNarrow_merged.csv
+│   ├── minuteIntensitiesWide_merged.csv
+│   ├── minuteMETsNarrow_merged.csv
+│   ├── minuteSleep_merged.csv
+│   ├── minuteStepsNarrow_merged.csv
+│   └── minuteStepsWide_merged.csv
+└── weightLogInfo_merged.csv
+```
+Before diving in the data let's first install the required libraries and include them.
+
+```{r eval = FALSE}
+install.packages("readr")
+install.packages("dplyr")
+install.packages("ggplot2")
+install.packages("hms")
+install.packages("plotly")
+```
+
+Now let's import them in our memory.
+
+```{r include, results = 'hide', message=FALSE}
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(hms)
+library(plotly)
+library(gridExtra)
+```
+
+Now we have our tools and are ready to dive in, we will start by importing all files from daily folder into our program.
+
+```{r import files daily, message = FALSE, results = 'hide'}
+dailyActivity_merged <- read_csv("archive/Fitabase Data 4.12.16-5.12.16/daily/dailyActivity_merged.csv")
+dailyCalories_merged <- read_csv("archive/Fitabase Data 4.12.16-5.12.16/daily/dailyCalories_merged.csv")
+dailyIntensities_merged <- read_csv("archive/Fitabase Data 4.12.16-5.12.16/daily/dailyIntensities_merged.csv")
+dailySteps_merged <- read_csv("archive/Fitabase Data 4.12.16-5.12.16/daily/dailySteps_merged.csv")
+```
+
+## Verification and Integrity check
+
+The purpose of this is to make sure our data is in the right format and if it has any NA values.
+
+```{r head}
+head(dailyActivity_merged)
+head(dailyCalories_merged)
+head(dailyIntensities_merged)
+head(dailySteps_merged)
+```
+
+After checking each column we can confirm that our data is in right format and there are no discrepancies.
+
+Now we will check if there are any duplicate rows in the files. We will do this by defining a function which returns the number of duplicate rows.
+
+```{r count_duplicate, results = 'hide'}
+count_duplicates <- function(dataframe){
+  n <- dataframe %>% nrow() - dataframe %>% unique() %>% nrow() #number of duplicate rows
+  return(n)
+}
+```
+
+Now let's call this function for every file.
+
+```{r count duplicate on files}
+count_duplicates(dailyActivity_merged)
+count_duplicates(dailyCalories_merged)
+count_duplicates(dailyIntensities_merged)
+count_duplicates(dailySteps_merged)
+```
+
+Now all rows are unique and we will check for NA values in all the files.
+
+```{r check null}
+dailyActivity_merged %>% is.na() %>% which()
+dailyCalories_merged %>% is.na() %>% which()
+dailyIntensities_merged %>% is.na() %>% which()
+dailySteps_merged %>% is.na() %>% which()
+```
+
+There are no NA values in any of the files and our cleaning process is done.
+
+### Studying the data
+
+Before we dive into the Process phase of our analysis process it's important that we get familiar with the data first. Let's check out the column names and try to find relations in the files. 
+
+We can use the colnames() function to see the column names of the files.
+
+```{r colnames}
+colnames(dailyActivity_merged)
+colnames(dailyCalories_merged)
+colnames(dailyIntensities_merged)
+colnames(dailySteps_merged)
+```
+
+Upon inspecting this data we find 3 things:
+
+1. They all have Id and ActivityDate in common
+2. All of them have 940 rows.
+3. dailyActivity_merged file has columns of all the tables.
+
+The 3rd point of out observation implies that we can get rid of all the files except dailyActivity_merged.
+
+```{r rm}
+rm(dailyCalories_merged)
+rm(dailyIntensities_merged)
+rm(dailySteps_merged)
+```
+
+## Processing 
+In this phase we will get rid of redundant elements and rename some rows.
+
+1. We are concerned with total active minutes so we will introduce a new column active_minutes and that will be the summation of VeryActiveMinutes,FairlyActiveMinutes,LightlyActiveMinutes and we will set SedentaryMinutes as inactive_minutes.
+2. We will also format our ActivityData to a date data-type as it will be appropriate.
+3. We will introduce a new column called weekday which will hold the day of the week on that date.
+3. We will alos change some column names.
+
+All these changes will be saved to a new dataframe called daily_activity.
+
+```{r cleaning, results='hide'}
+options(width = 1500)
+daily_activity <- dailyActivity_merged %>% transform(active_minutes = VeryActiveMinutes+FairlyActiveMinutes+LightlyActiveMinutes,  ActivityDate = as.Date(ActivityDate, format = "%m/%d/%Y") ,weekday = weekdays(as.Date(ActivityDate, format = "%m/%d/%Y"))) %>% rename(inactive_minutes = SedentaryMinutes, date = ActivityDate, total_steps = TotalSteps, total_distance = TotalDistance) %>% select(Id, date, weekday, total_steps, total_distance, active_minutes, inactive_minutes, Calories)
+
+colnames(daily_activity) <- tolower(colnames(daily_activity))
+```
+
+Our new data-frame looks something like this
+
+```{r head new, echo = FALSE}
+options(width = 1000)
+head(daily_activity)
+```
+
+```{r, echo = FALSE, results = 'hide'}
+rm(dailyActivity_merged)
+```
+
+## Analyzing & Visualizing relationships
+
+Let's create a scatter plot for total_steps and total_distance, we assume it to be directly proportional as total_distance should increase linearly with total_steps
+
+```{r, echo = FALSE}
+
+ggplot(data = daily_activity, aes(x = total_steps, y = total_distance)) + geom_point(size = 0.4, color = "Blue") + labs(title = "Total Steps VS Total Distance" ,x = "Total Steps", y = "Total Distance (in KiloMeters)")
+
+```
+
+As it is clearly visible that our hypothesis was correct, this also means that total_distance is a redundant attribute and we can use total_steps only. We can also check this corelation by using cor() like this:
+
+```{r}
+cor(daily_activity$total_steps, daily_activity$total_distance)
+```
+The 0.98 value signifies that there is a strong relationship between total_steps and total_distance.
+
+Now lets plot total_steps, active_minutes and inactive_minutes against calories, our hypothesis is that 
+1. total_steps directly proportional to calories  
+2. active_minutes directly proportional to calories
+3. inactive_minutes inversely proportional to calories
+
+```{r, echo = FALSE}
+steps_cal <- ggplot(data = daily_activity, aes(x = total_steps, y = calories)) + geom_point(size = 0.4, color = "Blue") + labs(title = "Total Steps VS Calories" ,x = "Total Steps", y = "Calories")
+activeMin_cal <- ggplot(data = daily_activity, aes(x = active_minutes, y = calories)) + geom_point(size = 0.4, color = "Blue")+ labs(title = "Active Minutes VS Calories" ,x = "Active Minutes", y = "Calories")
+inactiveMin_cal <- ggplot(data = daily_activity, aes(x = inactive_minutes, y = calories)) + geom_point(size = 0.4, color = "Blue") + labs(title = "Inactive Minutes VS Calories" ,x = "Active Minutes", y = "Calories")
+
+grid.arrange(steps_cal, activeMin_cal, inactiveMin_cal,  nrow = 2, ncol = 2) 
+```
+To understand the relationship more easily let's add a regression line to each plot.
+
+```{r, echo = FALSE, messages = FALSE}
+steps_cal <- steps_cal + geom_smooth(method = "lm", color = "Black", size = 1)
+activeMin_cal <- activeMin_cal + geom_smooth(method = "lm", color = "Black", size = 1)
+inactiveMin_cal <- inactiveMin_cal + geom_smooth(method = "lm", color = "Black", size = 1)
+
+grid.arrange(steps_cal, activeMin_cal, inactiveMin_cal, nrow = 2, ncol = 2)
+```
+As it's clear that our hypothesis is correct as the slope for total_steps/calories and active_minutes/calories is positive, it shows linear growth and inactive_minutes/calories is negative. The relationship is not really strong as there is lot of variance in the data.
+
+```{r}
+cor(daily_activity$total_steps, daily_activity$calories)
+cor(daily_activity$active_minutes, daily_activity$calories)
+cor(daily_activity$inactive_minutes, daily_activity$calories)
+```
+
+It is clear by the values that relationship is not strong and if we try to fit a linear model it will not be an apt one.
+
+```{r, echo = FALSE}
+rm(steps_cal)
+rm(activeMin_cal)
+rm(inactiveMin_cal)
+```
+
+Now that we have ploted and analyzed the relationship in raw data, lets find mean values of the attributes through the week and analyze it.
+
+```{r, results='hide'}
+order_days <- function(data, x){
+  data$weekday <- factor(data$weekday, levels = c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"))
+  return(data)
+}
+```
+
+This function will order days in general Monday to Saturday order.
+
+```{r,  results='hide'}
+mean_daily <- daily_activity %>% group_by(weekday) %>% summarize(mean_active = mean(active_minutes), mean_inactive = mean(inactive_minutes), mean_steps = mean(total_steps), mean_calories = mean(calories))
+mean_daily <- order_days(mean_daily)
+```
+
+```{r}
+head(mean_daily, 7)
+```
+
+This is the summarized data, we will visualize it now.
+
+```{r, echo = FALSE}
+act_inact_weekday <- ggplot(data = mean_daily %>% transform(act_inact = mean_active/mean_inactive), aes(x = weekday, y = act_inact)) + geom_line(color = "Red", group = 1) + geom_point() + ylim(0.175,0.275) + labs(title = "Ratio of active and inactive minutes per Weekday", x = "Weekday", y ="Ratio")
+steps_weekday <- ggplot(data = mean_daily, aes(x = weekday, y = mean_steps)) + geom_line(color = "Blue", group = 1) + geom_point() + ylim(5500, 9000) + labs(title = "Mean steps per Weekday", x = "Weekday", y ="Steps")
+calories_weekday <- ggplot(data = mean_daily, aes(x = weekday, y = mean_calories)) + geom_line(color = "Orange", group = 1) + geom_point() + ylim(2000, 2500) + labs(title = "Mean Calories per Weekday", x = "Weekday", y ="Calories")
+
+#grid.arrange(grobs = list(steps_weekday, calories_weekday, act_inact_weekday), layout_matrix = rbind(c(1, 1), c(2, 2), c(3, 3)), rel_heights = c(5, 2, 2))
+
+ggplotly(steps_weekday)
+ggplotly(calories_weekday)
+ggplotly(act_inact_weekday)
+```
+
+By analyzing the graphs we can find that people are
+1. Most active on Saturday and Tuesday
+2. Least active around Thursday and Sunday.
+
+```{r, echo = FALSE, results = 'hide', warning=FALSE}
+rm(act_inact_weekday)
+rm(calories_weekday)
+rm(steps_weekday)
+rm(mean_daily)
+```
+
+We will also analyze sleep and heartbeat data so let's import sleep data first called sleepDay_merged
+
+```{r, results = 'hide', message = FALSE}
+sleepDay_merged <- read_csv("archive/Fitabase Data 4.12.16-5.12.16/daily/sleepDay_merged.csv")
+```
+
+We should first check for duplicate enties and if there are, remove them.
+
+```{r}
+count_duplicates(sleepDay_merged)
+sleepDay_merged <- unique(sleepDay_merged)
+count_duplicates(sleepDay_merged)
+```
+
+Now that we have eliminated duplicates, let's check for NA values
+
+```{r}
+sleepDay_merged %>% is.na() %>% which()
+head(sleepDay_merged)
+```
+
+There are no NA values. Now we can move on to cleaning the data-frame. As we can see above that in SleepDay time is constant so we will only consider the date. We will change the SleepDay to date format, calculate weekday, and rename a few rows.
+
+```{r sleep cleaning, results='hide'}
+sleep_minutes <-  sleepDay_merged %>% rename(id = Id, date = SleepDay, sleep_time = TotalMinutesAsleep, count = TotalSleepRecords, bed_time = TotalTimeInBed) %>% transform(date = as.Date(date, "%m/%d/%Y %I:%M:%S %p")) %>% transform(weekday = weekdays.Date(date)) %>% select(id, date, weekday, count, sleep_time, bed_time)
+```
+
+```{r, echo = FALSE, results='hide'}
+rm(sleepDay_merged)
+```
+
+Let's plot some graphs to analyze our data. We will plot the following relations:
+1. sleep_time VS bed_time
+2. Mean sleep_time per weekday
+3. Mean count per weekday
+
+Let's plot sleep_time VS bed_time
+
+```{r, echo = FALSE}
+bed_sleep <- ggplot(data = sleep_minutes, aes(sleep_time, bed_time)) + geom_point(size = 0.4, color = "Blue", group = 1) + labs(title = "Time in bed VS Sleeping time", x = "Sleeping Time (minutes)", y = "Time in bed (minutes)")
+bed_sleep
+```
+
+```{r}
+cor(sleep_minutes$sleep_time, sleep_minutes$bed_time)
+```
+As we can see that data is highly linear and there is a strong linear relationship between these attributes, we will fit a regression model to this later on.
+
+Now we will calculate a summary table to find means.
+
+```{r mean of sleep}
+sleep_mean <- sleep_minutes %>% group_by(weekday) %>% summarize(mean_sleep_time = mean(sleep_time), mean_count = mean(count))
+sleep_mean <- order_days(sleep_mean)
+head(sleep_mean, 7)
+```
+Let's plot mean_sleep_time per weekday.
+
+
+```{r, echo = FALSE}
+sleep_per_weekday <- ggplot(data = sleep_mean, aes(weekday, mean_sleep_time)) + geom_line(size = 0.4, color = "Blue", group = 1) + geom_point() +  labs(title = "Mean sleeping time per weekday", x = "Weekday", y = "Sleeping Time (minutes)") + ylim(380, 500)
+
+ggplotly(sleep_per_weekday)
+```
+
+We can conclude that people sleep:
+1. Most on Wednesday and weekends(Sunday and Saturday) 
+2. Least on Thursday and Tuesday
+
+We really don't need to plot mean_count, we can just sort the table in descending order of mean_count.
+
+```{r}
+head(sleep_mean %>% select(weekday, mean_count) %>% arrange(desc(mean_count)), 7)
+```
+
+We can see that people take:
+
+1. Most naps on Saturday, Sunday and Wednesday
+2. Least naps on Thursday, Friday and Tuesday
+
+We also concluded the same result from the previous plot.
+
+Now let's perform inner join on sleep_minutes and daily_activity
+
+```{inner join sleep daily, results = 'hide'}
+sleep_daily <- merge(daily_activity, sleep_minutes, .by = id, .by=  date)
+```
+This is what the resultant data frame looks like now.
+```{r head sleep_daily}
+head(sleep_daily)
+```
+let's find correlation between sleep data and daily activity data.
+
+```{r sleep daily plots}
+sleep_distance <- ggplot(data = sleep_daily, aes(total_distance, sleep_time)) + geom_point(size = 0.5, color = "Blue") + labs(title = "Sleep time VS Total distance", x = "Total Distance(meters)", y = "Sleep Time(minutes)")
+sleep_active <- ggplot(data = sleep_daily, aes(active_minutes, sleep_time)) + geom_point(size = 0.5, color = "Blue") + labs(title = "Sleep time VS Active Minutes", x = "Active Minutes(minutes)", y = "Sleep Time(minutes)")
+sleep_inactive <- ggplot(data = sleep_daily, aes(inactive_minutes, sleep_time)) + geom_point(size = 0.5, color = "Blue") + labs(title = "Sleep time VS Inactive Minutes", x = "Inactive Minutes(minutes)", y = "Sleep Time(minutes)")
+sleep_calories <- ggplot(data = sleep_daily, aes(calories, sleep_time)) + geom_point(size = 0.5, color = "Blue") + labs(title = "Calories VS Total distance", x = "Calories", y = "Sleep Time(minutes)")
+
+grid.arrange(sleep_distance, sleep_active, sleep_inactive, sleep_calories, nrow = 2, ncol = 2)
+```
+As you can see the data is very random and there aren't any insights we can gain from it.
+
+```{r delete plots sleep}
+rm(sleep_active)
+rm(sleep_inactive)
+rm(sleep_calories)
+rm(sleep_distance)
+rm(bed_sleep)
+```
